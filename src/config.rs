@@ -54,14 +54,11 @@ impl Config {
     }
 
     /// Ordered UEVR build/output directories to search for a DLL filename:
-    /// 1. the running exe's own dir (the installer bundles DLLs there),
-    /// 2. THIS repo's `PoT_UEVR` submodule build output (dev builds from source),
-    /// 3. a sibling `~/PoT_UEVR` checkout, 4. the `~/UEVR` fallback.
+    /// 1. THIS repo's `PoT_UEVR` submodule build output (preferred),
+    /// 2. the running exe's own dir (the installer bundles DLLs there),
+    /// 3. a sibling `~/PoT_UEVR` checkout. (No generic `~/UEVR`.)
     fn uevr_base_dirs() -> Vec<PathBuf> {
         let mut v = Vec::new();
-        if let Some(d) = Self::exe_dir() {
-            v.push(d);
-        }
         v.push(
             Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("PoT_UEVR")
@@ -69,10 +66,17 @@ impl Config {
                 .join("bin")
                 .join("uevr"),
         );
+        if let Some(d) = Self::exe_dir() {
+            v.push(d);
+        }
         if let Some(home) = std::env::var_os("USERPROFILE") {
-            let home = Path::new(&home);
-            v.push(home.join("PoT_UEVR").join("build").join("bin").join("uevr"));
-            v.push(home.join("UEVR").join("build").join("bin").join("uevr"));
+            v.push(
+                Path::new(&home)
+                    .join("PoT_UEVR")
+                    .join("build")
+                    .join("bin")
+                    .join("uevr"),
+            );
         }
         v
     }
@@ -169,27 +173,22 @@ mod test {
     use super::*;
 
     #[test]
-    fn candidates_ordered_install_then_inrepo_submodule_then_siblings() {
+    fn candidates_ordered_submodule_then_installed_then_sibling() {
         let cands = Config::default_backend_candidates();
-        assert_eq!(cands.len(), 4, "exe-dir + in-repo submodule + sibling + ~/UEVR");
-        // exe-dir (install) first
-        assert_eq!(
-            cands[0],
-            Config::exe_dir().unwrap().join("UEVRBackend.dll"),
-            "install/exe dir should be first"
-        );
-        // the FIRST PoT_UEVR candidate must be the in-repo submodule (under CARGO_MANIFEST_DIR)
-        let in_repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("PoT_UEVR");
-        let first_pot = cands
-            .iter()
-            .find(|p| p.to_string_lossy().contains("PoT_UEVR"))
-            .expect("a PoT_UEVR candidate");
+        assert_eq!(cands.len(), 3, "in-repo submodule + exe-dir + sibling ~/PoT_UEVR");
+        // No generic ~/UEVR fallback should appear.
         assert!(
-            first_pot.starts_with(&in_repo),
-            "in-repo submodule should be the first PoT_UEVR choice, got {first_pot:?}"
+            !cands.iter().any(|p| p.to_string_lossy().contains("\\UEVR\\build")),
+            "~/UEVR must not be a candidate: {cands:?}"
         );
-        let uevr = cands.iter().position(|p| p.to_string_lossy().contains("\\UEVR\\build"));
-        assert!(uevr.is_some() && first_pot == &cands[1]);
+        // First candidate is the in-repo submodule (under CARGO_MANIFEST_DIR).
+        let in_repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("PoT_UEVR");
+        assert!(
+            cands[0].starts_with(&in_repo),
+            "in-repo submodule should be first, got {:?}", cands[0]
+        );
+        // Second is the running exe's install dir.
+        assert_eq!(cands[1], Config::exe_dir().unwrap().join("UEVRBackend.dll"));
     }
 
     #[test]
@@ -266,12 +265,8 @@ mod test {
     #[test]
     fn nullifier_candidates_ordered() {
         let cands = Config::default_nullifier_candidates();
-        assert_eq!(cands.len(), 4, "exe-dir + in-repo submodule + sibling + ~/UEVR");
+        assert_eq!(cands.len(), 3, "in-repo submodule + exe-dir + sibling ~/PoT_UEVR");
         let in_repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("PoT_UEVR");
-        let first_pot = cands
-            .iter()
-            .find(|p| p.to_string_lossy().contains("PoT_UEVR"))
-            .expect("a PoT_UEVR nullifier candidate");
-        assert!(first_pot.starts_with(&in_repo), "in-repo submodule should lead: {first_pot:?}");
+        assert!(cands[0].starts_with(&in_repo), "in-repo submodule should lead: {:?}", cands[0]);
     }
 }
