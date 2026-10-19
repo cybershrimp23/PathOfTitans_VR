@@ -2,6 +2,8 @@
 name = "pot-vr-launcher"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "Unofficial VR launcher for Path of Titans (injects UEVR)"
 
 [dependencies]
 directories = "5"

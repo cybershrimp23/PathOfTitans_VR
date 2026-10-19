@@ -1,0 +1,65 @@
+Path of Titans VR Launcher - End User License & Notices
+========================================================
+
+1. LICENSE (launcher)
+---------------------
+The Path of Titans VR Launcher ("the Software") is provided under the MIT
+License.
+
+MIT License
+
+Copyright (c) 2026 cybershrimp23
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+2. USE AT YOUR OWN RISK
+-----------------------
+This tool injects a community mod (UEVR) into a running game and requires
+anti-cheat to be disabled. Using it:
+  * may violate the Path of Titans Terms of Service and could result in an
+    account restriction or ban;
+  * is provided with ABSOLUTELY NO WARRANTY;
+  * may be unstable and could affect your game, saves, or system.
+You use it entirely at your own risk. It is intended for single-player and
+mod-allowed servers only.
+
+3. TRADEMARKS
+-------------
+PATH OF TITANS and ALDERON GAMES are trademarks of Alderon Games Inc. This
+project is an independent, unofficial community tool. It is NOT affiliated
+with, endorsed by, or sponsored by Alderon Games Inc.
+
+4. PRIVACY
+----------
+This launcher collects NO user data. It has no analytics, no telemetry, and no
+network calls of its own: it only reads and writes local files (its settings,
+the game's mod folder) and launches the game. Any online/telemetry behaviour
+belongs to the game or its launcher, not this tool.
+
+5. THIRD-PARTY COMPONENTS
+-------------------------
+This installer may bundle third-party software, each under its own license:
+  * UEVR (the VR backend) - a community virtual-reality mod for Unreal Engine
+    games.
+  * openvr_api.dll - provided by Valve Corporation (OpenVR / SteamVR SDK).
+  * openxr_loader.dll - provided by the Khronos Group (OpenXR).
+  * egui / eframe, egui_extras, egui_commonmark, pulldown-cmark, serde,
+    rfd, windows, directories (Rust crates, MIT/Apache-2.0).
+Installing the Software does not grant any rights to these third-party
+components beyond their own licenses.

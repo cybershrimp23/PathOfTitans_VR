@@ -492,8 +492,9 @@ impl eframe::App for LauncherApp {
             ui.colored_label(
                 egui::Color32::from_rgb(220, 200, 90),
                 egui::RichText::new(
-                    "⚠ Disclaimer: anti-cheat is disabled (or will be disabled on first launch) — \
-                     this limits you to single-player and mod-allowed servers.",
+                    "⚠ Use the mod at your own risk: anti-cheat is disabled (limits you to single-player \
+                     and mod-allowed servers). Not affiliated with Alderon Games. This launcher collects \
+                     no user data — see Help → VR Notes.",
                 )
                 .size(12.0),
             );
