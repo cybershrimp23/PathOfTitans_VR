@@ -1,6 +1,7 @@
 ; Path of Titans VR Launcher - NSIS installer
-; Per-user install (no admin), bundled UEVR DLLs, Start Menu + Desktop shortcuts,
-; full Add/Remove Programs uninstall.
+; Per-user install (no admin), bundled UEVR DLLs, Start Menu + Desktop shortcuts.
+; Version-specific install folder so multiple versions can coexist, with a
+; registry record of every install and an "remove the old version?" prompt.
 ;
 ; Compiled by build.ps1 via makensis. Overridable defines:
 ;   /DVERSION=<ver>       product version
@@ -9,6 +10,8 @@
 ;   /DOUT_FILE=<file>     output Setup .exe path
 
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
+!include "FileFunc.nsh"
 
 !ifndef VERSION
   !define VERSION "0.1.0"
@@ -20,10 +23,15 @@
   !define STAGE_DIR "${__FILEDIR__}\stage"
 !endif
 
-!define APP_NAME      "Path of Titans VR Launcher"
-!define APP_PUB       "cybershrimp23"
-!define APP_ID        "PoTVRLauncher"
-!define REG_UNINST    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}"
+!define APP_NAME   "Path of Titans VR Launcher"
+!define APP_PUB    "cybershrimp23"
+!define APP_ID     "PoTVRLauncher"
+; Our bookkeeping key: one subkey per installed version under \Versions.
+!define APP_REG    "Software\${APP_PUB}\${APP_NAME}"
+!define VERSIONS   "${APP_REG}\Versions"
+!define THIS_VER   "${VERSIONS}\${VERSION}"
+; Add/Remove Programs entry, per version, so each shows separately.
+!define ARP_KEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID} ${VERSION}"
 
 Name "${APP_NAME}"
 Unicode true
@@ -33,10 +41,12 @@ Unicode true
   OutFile "${OUT_FILE}"
 !endif
 
-; Per-user install: no UAC prompt, installs into the current user's profile.
-InstallDir "$LOCALAPPDATA\Programs\Path of Titans VR Launcher"
-InstallDirRegKey HKCU "${REG_UNINST}" "InstallLocation"
+; Version-specific default folder => side-by-side installs never collide.
+InstallDir "$LOCALAPPDATA\Programs\${APP_NAME} ${VERSION}"
 RequestExecutionLevel user
+
+; Global: set by the startup prompt (1 = remove previously installed versions).
+Var REMOVE_OLD
 
 ; ---- Modern UI pages ----
 !define MUI_ABORTWARNING
@@ -47,48 +57,95 @@ RequestExecutionLevel user
 !insertmacro MUI_PAGE_LICENSE "${__FILEDIR__}\LICENSE.txt"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE_NAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Run ${APP_NAME}"
 !insertmacro MUI_PAGE_FINISH
-
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
-
 !insertmacro MUI_LANGUAGE "English"
+
+; ---- Startup: detect prior installs and offer to remove them ----
+Function .onInit
+  SetRegView 64
+  StrCpy $REMOVE_OLD 0
+
+  ; Any previously installed version recorded?
+  EnumRegKey $R0 HKCU "${VERSIONS}" 0
+  StrCmp $R0 "" done            ; nothing installed -> no prompt
+    MessageBox MB_YESNO|MB_ICONQUESTION "A previously installed version of ${APP_NAME} was detected.$\r$\n$\r$\nClick Yes to REMOVE the old installation(s), then install v${VERSION}.$\r$\nClick No to keep them and install v${VERSION} side-by-side." /SD IDNO IDYES setremove IDNO keepboth
+    keepboth:
+      StrCpy $REMOVE_OLD 0
+      Goto done
+    setremove:
+      StrCpy $REMOVE_OLD 1
+  done:
+FunctionEnd
+
+; ---- Remove previously installed versions (runs their uninstallers) ----
+Function RemoveOldVersions
+  ${If} $REMOVE_OLD == 1
+    StrCpy $R9 0                ; loop guard
+    loop:
+      ${If} $R9 >= 16
+        Goto done
+      ${EndIf}
+      EnumRegKey $R0 HKCU "${VERSIONS}" 0     ; first remaining version
+      StrCmp $R0 "" done
+      ReadRegStr $R1 HKCU "${VERSIONS}\$R0" "UninstallExe"
+      ReadRegStr $R2 HKCU "${VERSIONS}\$R0" "InstallDir"
+      ${If} $R1 != ""
+      ${AndIf} ${FileExists} "$R1"
+        ; /S = silent; _? points at its install dir so it can self-remove
+        ExecWait '"$R1" /S _?=$R2'
+      ${EndIf}
+      DeleteRegKey HKCU "${VERSIONS}\$R0"     ; ensure it's gone regardless
+      IntOp $R9 $R9 + 1
+      Goto loop
+    done:
+  ${EndIf}
+FunctionEnd
 
 ; ---- Install ----
 Section "Application" SecApp
+  Call RemoveOldVersions
+
   SetOutPath "$INSTDIR"
-  ; Everything staged by build.ps1 (exe + UEVRBackend.dll + openvr_api.dll +
-  ; UEVRPluginNullifier.dll [+ openxr_loader.dll if present]).
   File "${STAGE_DIR}\pot-vr-launcher.exe"
   File "${STAGE_DIR}\UEVRBackend.dll"
   File "${STAGE_DIR}\openvr_api.dll"
   File /nonfatal "${STAGE_DIR}\UEVRPluginNullifier.dll"
   File /nonfatal "${STAGE_DIR}\openxr_loader.dll"
 
-  ; Start Menu + Desktop shortcuts
+  ; Start Menu + Desktop shortcuts, version-tagged so multiple coexist.
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-  CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}"
-  CreateShortCut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
-  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}"
+  CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME} ${VERSION}.lnk" "$INSTDIR\${EXE_NAME}"
+  CreateShortCut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME} ${VERSION}.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortCut "$DESKTOP\${APP_NAME} ${VERSION}.lnk" "$INSTDIR\${EXE_NAME}"
 
-  ; Uninstaller + Add/Remove Programs registration
+  ; Uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
-  WriteRegStr  HKCU "${REG_UNINST}" "DisplayName"     "${APP_NAME}"
-  WriteRegStr  HKCU "${REG_UNINST}" "DisplayVersion"  "${VERSION}"
-  WriteRegStr  HKCU "${REG_UNINST}" "Publisher"       "${APP_PUB}"
-  WriteRegStr  HKCU "${REG_UNINST}" "InstallLocation" "$INSTDIR"
-  WriteRegStr  HKCU "${REG_UNINST}" "DisplayIcon"     "$INSTDIR\${EXE_NAME}"
-  WriteRegStr  HKCU "${REG_UNINST}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
-  WriteRegDWORD HKCU "${REG_UNINST}" "NoModify" 1
-  WriteRegDWORD HKCU "${REG_UNINST}" "NoRepair" 1
+
+  ; Our per-version install-location registry record.
+  WriteRegStr  HKCU "${THIS_VER}" "DisplayName"   "${APP_NAME} ${VERSION}"
+  WriteRegStr  HKCU "${THIS_VER}" "DisplayVersion" "${VERSION}"
+  WriteRegStr  HKCU "${THIS_VER}" "InstallDir"     "$INSTDIR"
+  WriteRegStr  HKCU "${THIS_VER}" "UninstallExe"   "$INSTDIR\Uninstall.exe"
+
+  ; Add/Remove Programs (per version).
+  WriteRegStr  HKCU "${ARP_KEY}" "DisplayName"     "${APP_NAME} ${VERSION}"
+  WriteRegStr  HKCU "${ARP_KEY}" "DisplayVersion"  "${VERSION}"
+  WriteRegStr  HKCU "${ARP_KEY}" "Publisher"       "${APP_PUB}"
+  WriteRegStr  HKCU "${ARP_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr  HKCU "${ARP_KEY}" "DisplayIcon"     "$INSTDIR\${EXE_NAME}"
+  WriteRegStr  HKCU "${ARP_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegDWORD HKCU "${ARP_KEY}" "NoModify" 1
+  WriteRegDWORD HKCU "${ARP_KEY}" "NoRepair" 1
 SectionEnd
 
-; ---- Uninstall ----
+; ---- Uninstall (this version only; other versions are left alone) ----
 Section "Uninstall"
-  ; Program files
+  SetRegView 64
+
   Delete "$INSTDIR\pot-vr-launcher.exe"
   Delete "$INSTDIR\UEVRBackend.dll"
   Delete "$INSTDIR\openvr_api.dll"
@@ -97,12 +154,21 @@ Section "Uninstall"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir  "$INSTDIR"
 
-  ; Shortcuts
-  Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
-  Delete "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME} ${VERSION}.lnk"
+  Delete "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME} ${VERSION}.lnk"
+  Delete "$DESKTOP\${APP_NAME} ${VERSION}.lnk"
+  ; Only remove the start-menu folder if it's now empty (RMDir won't recurse).
   RMDir  "$SMPROGRAMS\${APP_NAME}"
-  Delete "$DESKTOP\${APP_NAME}.lnk"
 
-  ; Registry (program settings under %APPDATA%\PoTVRLauncher are intentionally kept)
-  DeleteRegKey HKCU "${REG_UNINST}"
+  DeleteRegKey HKCU "${ARP_KEY}"
+  DeleteRegKey HKCU "${THIS_VER}"
+
+  ; If no other versions remain, drop the root key.
+  EnumRegKey $R0 HKCU "${VERSIONS}" 0
+  StrCmp $R0 "" clean_root
+    Goto end
+  clean_root:
+    DeleteRegKey HKCU "${VERSIONS}"
+    DeleteRegKey HKCU "${APP_REG}"
+  end:
 SectionEnd
