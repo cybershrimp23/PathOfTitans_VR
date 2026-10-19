@@ -1,8 +1,13 @@
 # Path of Titans VR Launcher
 
+![icon](assets/icon.png)
+
 An unofficial, one-click VR launcher for **Path of Titans**. It finds the game,
 launches it at a VR-tuned resolution, and injects the [UEVR](https://github.com/Praydog/UEVR)
 VR backend automatically — no fiddling with the stock injector.
+
+> 📖 Full gameplay/tuning guidance: **[VR Notes](assets/vr_notes.md)**
+> (also available in-app under **Help → VR Notes**).
 
 ## Features
 - Auto-detects the game and the UEVR build; browse to override.
@@ -14,22 +19,49 @@ VR backend automatically — no fiddling with the stock injector.
 - Optional wipe of the per-game UEVR settings folder each launch.
 - NSIS Windows installer (per-user, no admin) with uninstall support.
 
+## What's in this repo
+| Path | Contents |
+|------|----------|
+| `src/` | Rust source: `main.rs` (eframe UI), `config.rs`, `discover.rs`, `inject.rs` (DLL injection + process watch), `game_settings.rs` (desktop-resolution protection). |
+| `build.rs` | Embeds the app icon + version metadata into the exe (Windows). |
+| `assets/` | `icon.png`, `icon.ico`, and the compiled-in `vr_notes.md` help document. |
+| `installer/` | `PoTVRLauncher.nsi` NSIS installer script + `LICENSE.txt` (EULA shown during setup). |
+| `build.ps1` | One-shot build: UEVR backend → launcher → installer. |
+| `PoT_UEVR/` | Git **submodule** — the UEVR fork (`cybershrimp23/PoT_UEVR`) that produces `UEVRBackend.dll`. |
+| `dist/` | Build output: the packaged `PoTVRLauncher-Setup-<version>.exe` (gitignored). |
+| `LICENSE` | MIT license for the launcher. |
+
 ## Build
-```
+### Prerequisites
+- Rust toolchain (`cargo`).
+- Visual Studio 2022 Build Tools + CMake (only needed to compile the UEVR stage).
+- NSIS: `winget install NSIS.NSIS` (for the installer step).
+
+### Steps
+```bash
+# Clone with the UEVR submodule
+git clone --recurse-submodules https://github.com/cybershrimp23/PathOfTitans_VR.git
+cd PathOfTitans_VR
+
+# Build everything (UEVR backend -> launcher -> installer)
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
-Stages: UEVR backend → launcher → installer (`dist\PoTVRLauncher-Setup-<version>.exe`).
-Flags: `-SkipUevr`, `-SkipLauncher`, `-SkipInstaller`, `-Clean`.
-Requires the Rust toolchain, Visual Studio 2022 Build Tools + CMake (UEVR stage),
-and NSIS (`winget install NSIS.NSIS`) for the installer.
+The installer is written to `dist\PoTVRLauncher-Setup-<version>.exe`.
+Stage flags: `-SkipUevr`, `-SkipLauncher`, `-SkipInstaller`, `-Clean`
+(e.g. `.\build.ps1 -SkipUevr` builds just the launcher + installer).
+
+Only the launcher needs to be run/tested directly:
+```bash
+cargo run --release
+```
 
 ## Usage
 Run the launcher and press **Launch VR**. Inside the game, press **Insert** to
 open the UEVR GUI for recentering and all tuning options. Settings live under
-**File → Settings**; see **Help → VR Notes**.
+**File → Settings**, and gameplay notes are under **Help → [VR Notes](assets/vr_notes.md)**.
 
 ## License
-This launcher is released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).
 
 ## Privacy
 This launcher collects **no user data** — no analytics, telemetry, or network
