@@ -5,6 +5,8 @@
   This limits you to **single-player** and **mod-allowed servers**.
 - The game starts **windowed at 1280×1024** (VR-tuned): the VR HUD texture shape follows the
   window shape, and this aspect is tuned.
+- **VR motion controllers are not supported.** VR provides head tracking only; play with
+  keyboard/mouse (or a gamepad), not the headset controllers.
 
 ## Opening the UEVR GUI
 - Press **Insert** (inside the game, in VR or on the desktop window) to open the **UEVR GUI**.
@@ -17,6 +19,9 @@
 
 ## Tuning
 - All VR sliders (*FollowView*, UI size, vignette, …) live in the **UEVR GUI** (press **Insert**).
+- **Big performance lever:** in the **UEVR GUI → Path of Titans settings**, switching between
+  **"No Ambient Occlusion"** and **"Ambient Occlusion"** makes a **large difference** in frame rate.
+  Use **"No Ambient Occlusion"** for much better performance.
 
 ## Your desktop settings are safe
 - The launcher **backs up** PoT's `GameUserSettings.ini` before a VR session and **restores it**
