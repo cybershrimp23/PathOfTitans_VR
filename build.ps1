@@ -2,22 +2,25 @@
 # Stages:
 #   1. UEVR backend (PoT_UEVR)  -> UEVRBackend.dll
 #   2. Launcher (cargo)         -> pot-vr-launcher.exe
+#   3. Installer (NSIS)         -> dist\PoTVRLauncher-Setup-<ver>.exe
 # Usage:
-#   .\build.ps1                # build everything
-#   .\build.ps1 -SkipUevr      # launcher only
-#   .\build.ps1 -SkipLauncher  # UEVR only
-#   .\build.ps1 -Clean         # wipe UEVR build dir first
+#   .\build.ps1                 # build everything
+#   .\build.ps1 -SkipUevr       # launcher + installer only
+#   .\build.ps1 -SkipLauncher   # UEVR only
+#   .\build.ps1 -SkipInstaller  # skip the NSIS package
+#   .\build.ps1 -Clean          # wipe UEVR build dir first
 
 param(
     [switch]$SkipUevr,
     [switch]$SkipLauncher,
+    [switch]$SkipInstaller,
     [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
 
 $RepoRoot   = $PSScriptRoot
-$UevrSrc    = if (Test-Path -LiteralPath "$env:USERPROFILE\PoT_UEVR") { "$env:USERPROFILE\PoT_UEVR" } else { throw "PoT_UEVR repo not found at $env:USERPROFILE\PoT_UEVR" }
+$UevrSrc    = if (Test-Path -LiteralPath "$env:USERPROFILE\PoT_UEVR") { "$env:USERPROFILE\PoT_UEVR" } else { "$env:USERPROFILE\PoT_UEVR" }
 $UevrBuild  = Join-Path $UevrSrc "build"
 $BackendDll = Join-Path $UevrBuild "bin\uevr\UEVRBackend.dll"
 
@@ -27,6 +30,24 @@ function Find-CMake {
     $fallback = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
     if (Test-Path -LiteralPath $fallback) { return $fallback }
     throw "cmake.exe not found (checked PATH and VS 2022 BuildTools)"
+}
+
+function Find-Makensis {
+    $cmd = Get-Command makensis -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    foreach ($p in @(
+        "C:\Program Files (x86)\NSIS\makensis.exe",
+        "C:\Program Files\NSIS\makensis.exe")) {
+        if (Test-Path -LiteralPath $p) { return $p }
+    }
+    return $null
+}
+
+function Cargo-Version {
+    $toml = Join-Path $RepoRoot "Cargo.toml"
+    $m = Select-String -Path $toml -Pattern '^\s*version\s*=\s*"([^"]+)"' | Select-Object -First 1
+    if ($m) { return $m.Matches[0].Groups[1].Value }
+    return "0.0.0"
 }
 
 function Step($msg) { Write-Host "`n==== $msg ====" -ForegroundColor Cyan }
@@ -92,6 +113,51 @@ if (-not $SkipLauncher) {
         $exe = Join-Path $RepoRoot "target\release\pot-vr-launcher.exe"
         if (Test-Path -LiteralPath $exe) {
             Write-Host "OK: $exe" -ForegroundColor Green
+        }
+    }
+}
+
+# ------------------------------------------------------------------- Installer
+if (-not $SkipInstaller) {
+    Step "Packaging installer (NSIS)"
+
+    $makensis = Find-Makensis
+    if (-not $makensis) {
+        Write-Warning "makensis.exe not found. Install NSIS (winget install NSIS.NSIS) and re-run, or use -SkipInstaller."
+    } else {
+        $exe = Join-Path $RepoRoot "target\release\pot-vr-launcher.exe"
+        if (-not (Test-Path -LiteralPath $exe)) {
+            Write-Warning "Launcher exe missing (build without -SkipLauncher first). Skipping installer."
+        } else {
+            $stage    = Join-Path $RepoRoot "installer\stage"
+            $dist     = Join-Path $RepoRoot "dist"
+            $uevrBin  = Join-Path $UevrBuild "bin\uevr"
+            New-Item -ItemType Directory -Force -Path $stage | Out-Null
+            New-Item -ItemType Directory -Force -Path $dist  | Out-Null
+            Get-ChildItem -LiteralPath $stage -File -ErrorAction SilentlyContinue | Remove-Item -Force
+
+            Copy-Item -LiteralPath $exe -Destination $stage -Force
+            foreach ($dll in @("UEVRBackend.dll","openvr_api.dll","UEVRPluginNullifier.dll","openxr_loader.dll")) {
+                $src = Join-Path $uevrBin $dll
+                if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $stage $dll) -Force }
+            }
+
+            if (-not (Test-Path -LiteralPath (Join-Path $stage "UEVRBackend.dll"))) {
+                Write-Warning "UEVRBackend.dll not staged (UEVR build missing). Skipping installer."
+            } else {
+                $ver   = Cargo-Version
+                $nsi   = Join-Path $RepoRoot "installer\PoTVRLauncher.nsi"
+                $setup = Join-Path $dist "PoTVRLauncher-Setup-$ver.exe"
+                & $makensis "/DVERSION=$ver" "/DSTAGE_DIR=$stage" "/DOUT_FILE=$setup" $nsi
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "makensis failed (exit $LASTEXITCODE)."
+                } elseif (Test-Path -LiteralPath $setup) {
+                    $i = Get-Item -LiteralPath $setup
+                    Write-Host ("OK installer: {0}  ({1:N0} bytes)" -f $i.FullName, $i.Length) -ForegroundColor Green
+                } else {
+                    Write-Warning "makensis succeeded but $setup was not produced."
+                }
+            }
         }
     }
 }

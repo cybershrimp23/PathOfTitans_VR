@@ -48,6 +48,11 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Directory containing the running launcher exe (the install dir when packaged).
+    fn exe_dir() -> Option<PathBuf> {
+        Some(std::env::current_exe().ok()?.parent()?.to_path_buf())
+    }
+
     fn dir() -> PathBuf {
         let dirs = directories::ProjectDirs::from("", "", "PoTVRLauncher");
         dirs.map(|d| d.config_dir().to_path_buf())
@@ -74,15 +79,18 @@ impl Config {
             .map_err(std::io::Error::other)
     }
 
-    /// Candidate UEVR backend DLL locations, newest build first.
+    /// Candidate UEVR backend DLL locations, install dir first, then newest build.
     pub fn default_backend_candidates() -> Vec<PathBuf> {
         let Some(home) = std::env::var("USERPROFILE").ok() else {
             return Vec::new();
         };
-        vec![
-            Path::new(&home).join("PoT_UEVR\\build\\bin\\uevr\\UEVRBackend.dll"),
-            Path::new(&home).join("UEVR\\build\\bin\\uevr\\UEVRBackend.dll"),
-        ]
+        let mut v = Vec::new();
+        if let Some(dir) = Self::exe_dir() {
+            v.push(dir.join("UEVRBackend.dll"));
+        }
+        v.push(Path::new(&home).join("PoT_UEVR\\build\\bin\\uevr\\UEVRBackend.dll"));
+        v.push(Path::new(&home).join("UEVR\\build\\bin\\uevr\\UEVRBackend.dll"));
+        v
     }
 
     pub fn default_backend_dll() -> Option<PathBuf> {
@@ -116,10 +124,13 @@ impl Config {
         };
         let runtime = self.requested_runtime();
         let base = |sub: &str, file: &str| Path::new(&home).join(format!("{sub}\\build\\bin\\uevr\\{file}"));
-        vec![
-            base("PoT_UEVR", runtime),
-            base("UEVR", runtime),
-        ]
+        let mut v = Vec::new();
+        if let Some(dir) = Self::exe_dir() {
+            v.push(dir.join(runtime));
+        }
+        v.push(base("PoT_UEVR", runtime));
+        v.push(base("UEVR", runtime));
+        v
     }
 
     /// The runtime DLL for this build, newest build first; None if none exists.
@@ -127,15 +138,18 @@ impl Config {
         self.runtime_dll_candidates().into_iter().find(|p| p.is_file())
     }
 
-    /// Candidate UEVR plugin-nullifier DLL locations, newest build first.
+    /// Candidate UEVR plugin-nullifier DLL locations, install dir first, then newest build.
     pub fn default_nullifier_candidates() -> Vec<PathBuf> {
         let Some(home) = std::env::var("USERPROFILE").ok() else {
             return Vec::new();
         };
-        vec![
-            Path::new(&home).join("PoT_UEVR\\build\\bin\\uevr\\UEVRPluginNullifier.dll"),
-            Path::new(&home).join("UEVR\\build\\bin\\uevr\\UEVRPluginNullifier.dll"),
-        ]
+        let mut v = Vec::new();
+        if let Some(dir) = Self::exe_dir() {
+            v.push(dir.join("UEVRPluginNullifier.dll"));
+        }
+        v.push(Path::new(&home).join("PoT_UEVR\\build\\bin\\uevr\\UEVRPluginNullifier.dll"));
+        v.push(Path::new(&home).join("UEVR\\build\\bin\\uevr\\UEVRPluginNullifier.dll"));
+        v
     }
 
     pub fn default_nullifier_dll() -> Option<PathBuf> {
@@ -155,17 +169,19 @@ mod test {
     use super::*;
 
     #[test]
-    fn candidates_are_ordered_newest_first() {
+    fn candidates_are_ordered_install_dir_then_newest_build() {
         let cands = Config::default_backend_candidates();
-        assert_eq!(cands.len(), 2);
-        assert!(cands[0]
-            .to_string_lossy()
-            .contains("PoT_UEVR"),
-            "PoT_UEVR build should be the first candidate");
-        assert!(cands[1]
-            .to_string_lossy()
-            .contains("UEVR\\build"),
-            "~/UEVR build should be the fallback");
+        assert_eq!(cands.len(), 3, "exe-dir + PoT_UEVR + ~/UEVR");
+        let pot = cands.iter().position(|p| p.to_string_lossy().contains("PoT_UEVR"));
+        let uevr = cands.iter().position(|p| p.to_string_lossy().contains("\\UEVR\\build"));
+        assert!(pot.is_some() && uevr.is_some());
+        assert!(pot.unwrap() < uevr.unwrap(), "PoT_UEVR should precede the ~/UEVR fallback");
+        // first candidate is the install/exe dir
+        assert!(
+            cands[0].to_string_lossy().contains("PoT_UEVR\\build")
+                || cands[0] == Config::exe_dir().unwrap().join("UEVRBackend.dll"),
+            "install dir should be the first candidate"
+        );
     }
 
     #[test]
@@ -240,16 +256,12 @@ mod test {
     }
 
     #[test]
-    fn nullifier_candidates_are_ordered_newest_first() {
+    fn nullifier_candidates_ordered_install_dir_then_newest_build() {
         let cands = Config::default_nullifier_candidates();
-        assert_eq!(cands.len(), 2);
-        assert!(cands[0]
-            .to_string_lossy()
-            .contains("PoT_UEVR"),
-            "PoT_UEVR build should be the first nullifier candidate");
-        assert!(cands[1]
-            .to_string_lossy()
-            .contains("UEVR\\build"),
-            "~/UEVR build should be the fallback nullifier candidate");
+        assert_eq!(cands.len(), 3, "exe-dir + PoT_UEVR + ~/UEVR");
+        let pot = cands.iter().position(|p| p.to_string_lossy().contains("PoT_UEVR"));
+        let uevr = cands.iter().position(|p| p.to_string_lossy().contains("\\UEVR\\build"));
+        assert!(pot.is_some() && uevr.is_some());
+        assert!(pot.unwrap() < uevr.unwrap());
     }
 }
