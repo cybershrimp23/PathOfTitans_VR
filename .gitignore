@@ -1,3 +1,8 @@
 /target
 /dist
 /installer/stage
+
+# editor swap/backup artifacts
+*~
+*.un~
+.*.un~

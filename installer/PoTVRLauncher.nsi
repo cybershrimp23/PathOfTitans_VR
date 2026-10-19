@@ -40,8 +40,8 @@ RequestExecutionLevel user
 
 ; ---- Modern UI pages ----
 !define MUI_ABORTWARNING
-!define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
-!define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
+!define MUI_ICON "${__FILEDIR__}\..\assets\icon.ico"
+!define MUI_UNICON "${__FILEDIR__}\..\assets\icon.ico"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${__FILEDIR__}\LICENSE.txt"

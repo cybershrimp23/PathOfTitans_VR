@@ -1,22 +1,11 @@
 # VR Notes
 
-## Before you play
-- **Anti-cheat** must be disabled in the PoT launcher (*Settings → Game*) or injection will fail.
-  This limits you to **single-player** and **mod-allowed servers**.
-- The game starts **windowed at 1280×1024** (VR-tuned): the VR HUD texture shape follows the
-  window shape, and this aspect is tuned.
-
 ## Opening the UEVR GUI
 - Press **Insert** (inside the game, in VR or on the desktop window) to open the **UEVR GUI**.
   Everything is tuned from there — the recenter, calibration, and all sliders live in that overlay.
 
-## Getting VR to show up
-- Give it **~30 seconds** after the window appears for UEVR to come up.
-- The **first view is often wrong** (known UEVR/PoT issue). Press **Insert**, then click
-  **Reinitialize Runtime** — or take the headset off and put it back on.
-
 ## Tuning
-- All VR sliders (*FollowView*, UI size, vignette, …) live in the **UEVR GUI** (press **Insert**).
+- All VR sliders (*FollowView*, UI size, vignette, …) live in the **UEVR GUI** under Path of Titans settings (press **Insert**).
 
 ## Your desktop settings are safe
 - The launcher **backs up** PoT's `GameUserSettings.ini` before a VR session and **restores it**
