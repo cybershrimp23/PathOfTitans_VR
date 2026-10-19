@@ -6,7 +6,7 @@ An unofficial, one-click VR launcher for **Path of Titans**. It finds the game,
 launches it at a VR-tuned resolution, and injects the [UEVR](https://github.com/Praydog/UEVR)
 VR backend automatically — no fiddling with the stock injector.
 
-> 📖 Full gameplay/tuning guidance: **[VR Notes](assets/vr_notes.md)**
+> 📖 Full gameplay/tuning guidance: **[VR Notes](https://github.com/cybershrimp23/PathOfTitans_VR/blob/main/assets/vr_notes.md)**
 > (also available in-app under **Help → VR Notes**).
 
 ## Features
@@ -58,7 +58,7 @@ cargo run --release
 ## Usage
 Run the launcher and press **Launch VR**. Inside the game, press **Insert** to
 open the UEVR GUI for recentering and all tuning options. Settings live under
-**File → Settings**, and gameplay notes are under **Help → [VR Notes](assets/vr_notes.md)**.
+**File → Settings**, and gameplay notes are under **Help → [VR Notes](https://github.com/cybershrimp23/PathOfTitans_VR/blob/main/assets/vr_notes.md)**.
 
 ## License
 Released under the [MIT License](LICENSE).
