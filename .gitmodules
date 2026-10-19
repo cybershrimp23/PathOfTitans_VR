@@ -1,0 +1,3 @@
+[submodule "PoT_UEVR"]
+	path = PoT_UEVR
+	url = git@github.com:cybershrimp23/PoT_UEVR.git
