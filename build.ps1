@@ -20,7 +20,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $RepoRoot   = $PSScriptRoot
-$UevrSrc    = if (Test-Path -LiteralPath "$env:USERPROFILE\PoT_UEVR") { "$env:USERPROFILE\PoT_UEVR" } else { "$env:USERPROFILE\PoT_UEVR" }
+# Build the UEVR backend from THIS repo's submodule (not a sibling checkout).
+$UevrSrc    = Join-Path $RepoRoot "PoT_UEVR"
 $UevrBuild  = Join-Path $UevrSrc "build"
 $BackendDll = Join-Path $UevrBuild "bin\uevr\UEVRBackend.dll"
 
@@ -54,7 +55,11 @@ function Step($msg) { Write-Host "`n==== $msg ====" -ForegroundColor Cyan }
 
 # ---------------------------------------------------------------- UEVR backend
 if (-not $SkipUevr) {
-    Step "Building UEVR backend (PoT_UEVR)"
+    Step "Building UEVR backend (in-repo PoT_UEVR submodule)"
+
+    if (-not (Test-Path -LiteralPath (Join-Path $UevrSrc "CMakeLists.txt"))) {
+        Write-Warning "PoT_UEVR submodule missing/uninitialized at $UevrSrc. Run: git submodule update --init --recursive. Skipping UEVR stage."
+    } else {
 
     if (Get-Process -Name "PathOfTitans-Win64-Shipping" -ErrorAction SilentlyContinue) {
         Write-Warning "Path of Titans is running - close it before building (UEVRBackend.dll may be locked). Continuing to the launcher stage."
@@ -93,6 +98,7 @@ if (-not $SkipUevr) {
     } else {
         $info = Get-Item -LiteralPath $BackendDll
         Write-Host ("OK: {0}  ({1:N0} bytes, {2})" -f $info.FullName, $info.Length, $info.LastWriteTime) -ForegroundColor Green
+    }
     }
 }
 
