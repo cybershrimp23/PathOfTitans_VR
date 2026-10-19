@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), windows_subsystem = "windows")] // GUI app: no console window when run
+
 mod config;
 mod discover;
 mod game_settings;
