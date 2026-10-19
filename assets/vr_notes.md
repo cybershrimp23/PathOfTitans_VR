@@ -22,6 +22,16 @@
 - The launcher **backs up** PoT's `GameUserSettings.ini` before a VR session and **restores it**
   when the game closes, so desktop play keeps your own resolution. Change this in *File → Settings*.
 
+## Known issues
+- **VR view fails to initialize correctly.** The first view is often wrong. Press **Insert**, go to
+  **Unreal**, change *Rendering Method* from **Native Stereo** to **Synchronised Sequential**, then
+  back to **Native Stereo** to force a clean re-init.
+- **Group-member health indicators and Points-of-Interest markers are not positioned correctly.**
+  If you want to travel to a PoI, make sure it is centered in your view first.
+- **The low-health damage vignette is not drawn.**
+- **The character editor view causes flashing**, and there are general **issues with the 3D view**
+  in that screen. Best avoided while in VR.
+
 ## License & disclaimer
 - This launcher is free and open source under the **MIT License**.
 - **Use the mod at your own risk.** It injects a third-party mod (UEVR) with anti-cheat disabled;
