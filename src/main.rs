@@ -8,8 +8,12 @@ use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 
 use eframe::egui;
+use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 
 use config::Config;
+
+/// VR Notes rendered as CommonMark. Stored as a compiled-in string.
+const VR_NOTES_MD: &str = include_str!("../assets/vr_notes.md");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -82,6 +86,7 @@ struct LauncherApp {
     show_notes: bool,
     edit_game: String,
     edit_backend: String,
+    md_cache: CommonMarkCache,
 }
 
 impl LauncherApp {
@@ -124,7 +129,7 @@ impl LauncherApp {
                     }
                 }
                 None => match game_settings::restore_desktop() {
-                    Ok(true) => shared.log("Restored desktop GameUserSettings.ini from a pending backup."),
+                    Ok(true) => shared.log("Restored desktop display settings from a prior session."),
                     Ok(false) => {}
                     Err(e) => shared.log(&format!("WARN: {e}")),
                 },
@@ -138,6 +143,7 @@ impl LauncherApp {
             show_notes: false,
             edit_game: String::new(),
             edit_backend: String::new(),
+            md_cache: CommonMarkCache::default(),
         };
         app.sync_edit_fields();
         app
@@ -291,7 +297,7 @@ fn run_launch_flow(
 
     if protect_desktop {
         match game_settings::snapshot_desktop() {
-            Ok(()) => shared.log("Backed up desktop GameUserSettings.ini (will restore when the game exits)."),
+            Ok(()) => shared.log("Saved your desktop display settings (will restore when the game exits)."),
             Err(e) => shared.log(&format!("WARN: could not back up desktop settings: {e}")),
         }
     }
@@ -372,7 +378,7 @@ fn run_launch_flow(
         let watcher = Arc::clone(&shared);
         if let Err(e) = inject::watch_process_exit(pid, move || {
             match game_settings::restore_desktop() {
-                Ok(true) => watcher.log("Game exited - desktop GameUserSettings.ini restored."),
+                Ok(true) => watcher.log("Game exited - desktop display settings restored."),
                 Ok(false) => {}
                 Err(e) => watcher.log(&format!("WARN: could not restore desktop settings: {e}")),
             }
@@ -471,15 +477,26 @@ impl eframe::App for LauncherApp {
             );
 
             ui.add_space(24.0);
-            let label = if busy { "Working…" } else { "  ▶  Launch VR  ▶  " };
-            let button = egui::Button::new(egui::RichText::new(label).size(28.0))
-                .min_size(egui::vec2(280.0, 64.0));
+            let label = if busy { "Working…" } else { "  Launch VR" };
+            let icon = egui::Image::new(egui::include_image!("../assets/icon.png"))
+                .max_size(egui::vec2(44.0, 44.0));
+            let text = egui::RichText::new(label).size(28.0);
+            let button = egui::Button::new((icon, text)).min_size(egui::vec2(280.0, 64.0));
             if ui.add_enabled(!busy, button).clicked() {
                 self.launch();
             }
             ui.add_space(8.0);
             ui.label("Launches the game windowed at 1280x1024 (VR-tuned) and injects UEVR automatically.");
             ui.label("If the game is already running, Launch VR just injects. Watch progress in File > Log.");
+            ui.add_space(10.0);
+            ui.colored_label(
+                egui::Color32::from_rgb(220, 200, 90),
+                egui::RichText::new(
+                    "⚠ Disclaimer: anti-cheat is disabled (or will be disabled on first launch) — \
+                     this limits you to single-player and mod-allowed servers.",
+                )
+                .size(12.0),
+            );
         });
 
         if self.show_settings {
@@ -587,7 +604,7 @@ impl LauncherApp {
                     ));
                     self.config.save().ok();
                 }
-                ui.label("    (Backs up PoT's GameUserSettings.ini before a VR session and restores it when the game closes, so desktop play keeps your fullscreen resolution.)");
+                ui.label("    (Saves your resolution/window settings before a VR session and restores them when the game closes, so desktop play keeps your fullscreen setup. Your Alderon login is left untouched.)");
 
                 ui.add_space(14.0);
                 ui.label("Inject delay after launch:");
@@ -643,16 +660,13 @@ impl LauncherApp {
         let mut open = self.show_notes;
         egui::Window::new("VR Notes")
             .open(&mut open)
-            .default_size((520.0, 380.0))
+            .default_size((560.0, 420.0))
             .show(ui, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.label("• Anti-cheat must be disabled in the PoT launcher (Settings → Game) or injection will fail. This limits you to single player and mod-allowed servers.");
-                    ui.label("• First VR view is often wrong (known UEVR/PoT issue): open the UEVR GUI with Insert and click Reinitialize Runtime — or take the headset off and put it back on.");
-                    ui.label("• Give it ~30 seconds after the window appears for UEVR to come up.");
-                    ui.label("• Resolution is fixed at 1280x1024 windowed: the VR HUD texture shape is driven by the window shape and this aspect is tuned.");
-                    ui.label("• Your desktop resolution is safe: the launcher backs up PoT's GameUserSettings.ini before a VR session and restores it when the game closes (File → Settings to change).");
-                    ui.label("• All VR tuning sliders (FollowView, UI size, vignette…) live in the UEVR GUI (Insert).");
-                });
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        CommonMarkViewer::new().show(ui, &mut self.md_cache, VR_NOTES_MD);
+                    });
             });
         self.show_notes = open;
     }
@@ -669,6 +683,9 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Path of Titans VR Launcher",
         options,
-        Box::new(|_cc| Ok(Box::new(LauncherApp::new()))),
+        Box::new(|cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+            Ok(Box::new(LauncherApp::new()))
+        }),
     )
 }
