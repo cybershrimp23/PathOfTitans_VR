@@ -12,7 +12,7 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub nullify_vr_plugins: bool,
     /// Wipe the per-game UEVR folder (config/imgui/scripts) before each launch.
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub wipe_uevr_config_on_launch: bool,
     /// Snapshot/restore PoT's GameUserSettings.ini so VR resolution doesn't leak into desktop.
     #[serde(default = "default_true")]
@@ -39,8 +39,8 @@ impl Default for Config {
             use_openvr: true,
             // Default: always disable other VR plugins.
             nullify_vr_plugins: true,
-            // Fresh UEVR state every launch (scripts are wiped too).
-            wipe_uevr_config_on_launch: true,
+            // Do NOT wipe the per-game UEVR folder by default (keeps config/imgui/scripts).
+            wipe_uevr_config_on_launch: false,
             protect_desktop_settings: true,
             inject_delay_secs: default_inject_delay_secs(),
         }
@@ -220,8 +220,8 @@ mod test {
     }
 
     #[test]
-    fn defaults_wipe_on_launch_to_true() {
-        assert!(Config::default().wipe_uevr_config_on_launch);
+    fn defaults_wipe_on_launch_to_false() {
+        assert!(!Config::default().wipe_uevr_config_on_launch);
     }
 
     #[test]
