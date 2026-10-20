@@ -56,6 +56,7 @@ Var REMOVE_OLD
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${__FILEDIR__}\LICENSE.txt"
 !insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE_NAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Run ${APP_NAME}"
@@ -115,6 +116,7 @@ Section "Application" SecApp
   File "${STAGE_DIR}\openvr_api.dll"
   File /nonfatal "${STAGE_DIR}\UEVRPluginNullifier.dll"
   File /nonfatal "${STAGE_DIR}\openxr_loader.dll"
+  File /nonfatal "${STAGE_DIR}\vr_image.png"
 
   ; Start Menu + Desktop shortcuts, version-tagged so multiple coexist.
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
@@ -142,11 +144,30 @@ Section "Application" SecApp
   WriteRegDWORD HKCU "${ARP_KEY}" "NoRepair" 1
 SectionEnd
 
+; ---- Optional: register "Path of Titans VR" in SteamVR Home ----
+Section "Add to SteamVR Home" SecVRHome
+  ; The launcher writes pottvr.vrmanifest next to the exe and adds it to the
+  ; OpenVR path registry ("manifest_paths"). SteamVR must restart to pick it up.
+  nsExec::ExecToLog '"$INSTDIR\${EXE_NAME}" --register'
+  Pop $0
+SectionEnd
+
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecApp}    "The Path of Titans VR Launcher and the bundled UEVR backend (required)."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecVRHome} "Adds a 'Path of Titans VR' tile to SteamVR Home so you can start the game straight from your headset. Requires Steam + SteamVR (restart SteamVR after installing)."
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
+
 ; ---- Uninstall (this version only; other versions are left alone) ----
 Section "Uninstall"
   SetRegView 64
 
+  ; Drop our SteamVR Home registration before deleting the exe.
+  nsExec::ExecToLog '"$INSTDIR\${EXE_NAME}" --unregister'
+  Pop $0
+
   Delete "$INSTDIR\pot-vr-launcher.exe"
+  Delete "$INSTDIR\pottvr.vrmanifest"
+  Delete "$INSTDIR\vr_image.png"
   Delete "$INSTDIR\UEVRBackend.dll"
   Delete "$INSTDIR\openvr_api.dll"
   Delete "$INSTDIR\UEVRPluginNullifier.dll"
@@ -157,6 +178,10 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME} ${VERSION}.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME} ${VERSION}.lnk"
   Delete "$DESKTOP\${APP_NAME} ${VERSION}.lnk"
+  ; Also drop un-versioned shortcuts left by pre-0.2 installs.
+  Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk"
+  Delete "$DESKTOP\${APP_NAME}.lnk"
   ; Only remove the start-menu folder if it's now empty (RMDir won't recurse).
   RMDir  "$SMPROGRAMS\${APP_NAME}"
 

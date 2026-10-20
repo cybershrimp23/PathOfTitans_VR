@@ -136,6 +136,27 @@ fn open_waitable_handle(pid: u32) -> Option<HANDLE> {
     unsafe { OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok() }
 }
 
+/// Blocks the calling thread until the given pid exits. If the process cannot be
+/// opened for a waitable handle (elevated game, or already gone), falls back to
+/// polling the process list.
+pub fn wait_for_exit(pid: u32) {
+    if pid == 0 {
+        return;
+    }
+    match open_waitable_handle(pid) {
+        Some(h) => unsafe {
+            WaitForSingleObject(h, INFINITE);
+            CloseHandle(h).ok();
+        },
+        None => loop {
+            match find_running_game() {
+                Some(p) if p == pid => std::thread::sleep(std::time::Duration::from_millis(500)),
+                _ => break,
+            }
+        },
+    }
+}
+
 /// Spawns a background thread that blocks until the given pid exits, then runs `on_exit`.
 /// Returns Err if the process cannot be opened to watch.
 pub fn watch_process_exit(

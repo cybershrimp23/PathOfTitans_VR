@@ -86,10 +86,15 @@ impl Config {
         Self::uevr_base_dirs().into_iter().map(|d| d.join(file)).collect()
     }
 
-    fn dir() -> PathBuf {
+    /// Where config.json and launch.log live (%APPDATA%\PoTVRLauncher or equivalent).
+    pub fn config_dir() -> PathBuf {
         let dirs = directories::ProjectDirs::from("", "", "PoTVRLauncher");
         dirs.map(|d| d.config_dir().to_path_buf())
             .unwrap_or_else(|| PathBuf::from("."))
+    }
+
+    fn dir() -> PathBuf {
+        Self::config_dir()
     }
 
     fn path() -> PathBuf {

@@ -147,6 +147,8 @@ if (-not $SkipInstaller) {
                 $src = Join-Path $uevrBin $dll
                 if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $stage $dll) -Force }
             }
+            $capsule = Join-Path $RepoRoot "assets\vr_image.png"
+            if (Test-Path -LiteralPath $capsule) { Copy-Item -LiteralPath $capsule -Destination $stage -Force }
 
             if (-not (Test-Path -LiteralPath (Join-Path $stage "UEVRBackend.dll"))) {
                 Write-Warning "UEVRBackend.dll not staged (UEVR build missing). Skipping installer."

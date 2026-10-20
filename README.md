@@ -13,6 +13,12 @@ VR backend automatically — no fiddling with the stock injector.
 - Auto-detects the game and the UEVR build; browse to override.
 - Launches windowed at 1280×1024 (VR-tuned) and injects `UEVRBackend.dll`.
 - OpenVR (default) or OpenXR runtime selection.
+- Optional **SteamVR Home** integration: a "Path of Titans VR" tile that launches straight
+  into VR from your headset (installer checkbox, or File → Settings in-app).
+- Optional **SteamVR Home** integration: a "Path of Titans VR" tile that launches straight
+  into VR from your headset (installer checkbox, or File → Settings in-app).
+- Optional **SteamVR Home** integration: register a "Path of Titans VR" tile and launch
+  straight into VR from your headset (installer checkbox, or File → Settings in-app).
 - Optional plugin-nullifier to disable competing VR runtimes.
 - Protects your desktop resolution: backs up `GameUserSettings.ini` before a VR
   session and restores it when the game exits.
@@ -59,6 +65,11 @@ cargo run --release
 Run the launcher and press **Launch VR**. Inside the game, press **Insert** to
 open the UEVR GUI for recentering and all tuning options. Settings live under
 **File → Settings**, and gameplay notes are under **Help → [VR Notes](https://github.com/cybershrimp23/PathOfTitans_VR/blob/main/assets/vr_notes.md)**.
+
+With **SteamVR Home** integration enabled (installer checkbox or File → Settings), a
+**Path of Titans VR** tile appears in Home; selecting it in your headset launches the
+game straight into VR. Headless sessions are logged to
+`%APPDATA%\PoTVRLauncher\config\launch.log`.
 
 ## License
 Released under the [MIT License](LICENSE).

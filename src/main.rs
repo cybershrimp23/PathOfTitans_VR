@@ -4,9 +4,10 @@ mod config;
 mod discover;
 mod game_settings;
 mod inject;
+mod steamvr;
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 
 use eframe::egui;
@@ -51,15 +52,36 @@ impl State {
 
 struct Shared {
     log: Mutex<Vec<String>>,
+    /// Optional mirror of every log line to this file (used by the headless
+    /// --launch mode invoked from SteamVR Home, where there is no GUI to read).
+    log_path: Option<PathBuf>,
     state: AtomicU8,
     busy: AtomicBool,
     detected: Mutex<Option<PathBuf>>,
+    pid: AtomicU32,
 }
 
 impl Shared {
+    fn new(log_path: Option<PathBuf>) -> Self {
+        Shared {
+            log: Mutex::new(Vec::new()),
+            log_path,
+            state: AtomicU8::new(State::Ready as u8),
+            busy: AtomicBool::new(false),
+            detected: Mutex::new(None),
+            pid: AtomicU32::new(0),
+        }
+    }
+
     fn log(&self, msg: &str) {
         let line = format!("[{}] {msg}", timestamp());
-        self.log.lock().unwrap().push(line);
+        self.log.lock().unwrap().push(line.clone());
+        if let Some(p) = &self.log_path {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+                let _ = writeln!(f, "{line}");
+            }
+        }
     }
 
     fn set_state(&self, s: State) {
@@ -100,12 +122,7 @@ impl LauncherApp {
         if config.backend_dll.as_ref().is_none_or(|p| !p.is_file()) {
             config.backend_dll = Config::default_backend_dll().filter(|p| p.is_file());
         }
-        let shared = Arc::new(Shared {
-            log: Mutex::new(Vec::new()),
-            state: AtomicU8::new(State::Ready as u8),
-            busy: AtomicBool::new(false),
-            detected: Mutex::new(None),
-        });
+        let shared = Arc::new(Shared::new(None));
         if config.game_exe.is_none() {
             shared.log("Path of Titans not found automatically - open File > Settings to browse for it.");
         }
@@ -174,7 +191,7 @@ impl LauncherApp {
         let wipe_uevr_config = self.config.wipe_uevr_config_on_launch;
         let protect_desktop = self.config.protect_desktop_settings;
         std::thread::spawn(move || {
-            run_launch_flow(shared, exe, dll, use_openvr, nullify_vr_plugins, inject_delay_secs, wipe_uevr_config, protect_desktop)
+            run_launch_flow(shared, exe, dll, use_openvr, nullify_vr_plugins, inject_delay_secs, wipe_uevr_config, protect_desktop, true)
         });
     }
 
@@ -253,6 +270,7 @@ fn run_launch_flow(
     inject_delay_secs: u32,
     wipe_uevr_config: bool,
     protect_desktop: bool,
+    watch: bool,
 ) {
     shared.log(&format!("Game:   {}", exe.display()));
     shared.log(&format!("Backend: {}", dll.display()));
@@ -339,6 +357,7 @@ fn run_launch_flow(
         ));
         std::thread::sleep(inject_delay);
     }
+    shared.pid.store(pid, Ordering::Relaxed);
 
     shared.set_state(State::Injecting);
     if nullify_vr_plugins {
@@ -376,7 +395,7 @@ fn run_launch_flow(
         shared.log("Module not verified yet - UEVR may still be initializing.");
     }
 
-    if protect_desktop {
+    if protect_desktop && watch {
         let watcher = Arc::clone(&shared);
         if let Err(e) = inject::watch_process_exit(pid, move || {
             match game_settings::restore_desktop() {
@@ -623,6 +642,26 @@ impl LauncherApp {
                 ui.label("    (Seconds to wait after launching before injecting the backend. Set to 0 to inject immediately.)");
 
                 ui.add_space(14.0);
+                ui.label("SteamVR Home:");
+                ui.horizontal(|ui| {
+                    if ui.button("Add to SteamVR Home").clicked() {
+                        let s = Arc::clone(&self.shared);
+                        std::thread::spawn(move || match steamvr::register() {
+                            Ok(m) => s.log(&format!("SteamVR Home: {m}")),
+                            Err(e) => s.log(&format!("SteamVR Home ERROR: {e}")),
+                        });
+                    }
+                    if ui.button("Remove from SteamVR Home").clicked() {
+                        let s = Arc::clone(&self.shared);
+                        std::thread::spawn(move || match steamvr::unregister() {
+                            Ok(m) => s.log(&format!("SteamVR Home: {m}")),
+                            Err(e) => s.log(&format!("SteamVR Home ERROR: {e}")),
+                        });
+                    }
+                });
+                ui.label("    (Adds a 'Path of Titans VR' tile to SteamVR Home that starts the game straight into VR. Restart SteamVR if it doesn't appear.)");
+
+                ui.add_space(14.0);
                 if ui.button("Save").clicked() {
                     self.config.game_exe = Some(PathBuf::from(&game));
                     self.config.backend_dll = Some(PathBuf::from(&backend));
@@ -675,7 +714,101 @@ impl LauncherApp {
     }
 }
 
+/// Headless launch used by the SteamVR Home tile (`--launch`).
+/// Runs the normal launch+inject flow, mirrors the log to launch.log next to
+/// the config, then blocks until the game exits so SteamVR Home keeps the app
+/// session attached for the whole play session.
+fn headless_launch() -> i32 {
+    let mut config = Config::load();
+    if config.game_exe.as_ref().is_none_or(|p| !p.is_file()) {
+        config.game_exe = discover::quick_find();
+    }
+    if config.backend_dll.as_ref().is_none_or(|p| !p.is_file()) {
+        config.backend_dll = Config::default_backend_dll().filter(|p| p.is_file());
+    }
+    let shared = Arc::new(Shared::new(Some(Config::config_dir().join("launch.log"))));
+    shared.log("Launched from the command line (--launch, e.g. SteamVR Home).");
+
+    let Some(exe) = config.game_exe.clone().filter(|p| p.is_file()) else {
+        shared.log("ERROR: game path is not set or invalid - run the launcher GUI once and configure it.");
+        return 1;
+    };
+    let Some(dll) = config.backend_dll_path() else {
+        shared.log("ERROR: UEVRBackend.dll not found - run build.ps1 or configure the path in the GUI.");
+        return 1;
+    };
+
+    if game_settings::restore_pending() && inject::find_running_game().is_none() {
+        match game_settings::restore_desktop() {
+            Ok(true) => shared.log("Restored desktop display settings from a prior session."),
+            Ok(false) => {}
+            Err(e) => shared.log(&format!("WARN: {e}")),
+        }
+    }
+
+    run_launch_flow(
+        Arc::clone(&shared),
+        exe,
+        dll,
+        config.use_openvr,
+        config.nullify_vr_plugins,
+        config.inject_delay_secs,
+        config.wipe_uevr_config_on_launch,
+        config.protect_desktop_settings,
+        false,
+    );
+
+    if State::from_u8(shared.state.load(Ordering::Relaxed)) == State::Failed {
+        return 1;
+    }
+    let pid = shared.pid.load(Ordering::Relaxed);
+    shared.log(&format!(
+        "Keeping the launcher alive until the game (pid {pid}) exits, so SteamVR Home stays attached."
+    ));
+    inject::wait_for_exit(pid);
+    if config.protect_desktop_settings {
+        match game_settings::restore_desktop() {
+            Ok(true) => shared.log("Game exited - desktop display settings restored."),
+            Ok(false) => {}
+            Err(e) => shared.log(&format!("WARN: could not restore desktop settings: {e}")),
+        }
+    }
+    shared.log("Session complete.");
+    0
+}
+
+fn headless_steamvr_home(register: bool) -> i32 {
+    let shared = Shared::new(Some(Config::config_dir().join("launch.log")));
+    let result = if register {
+        steamvr::register()
+    } else {
+        steamvr::unregister()
+    };
+    match result {
+        Ok(msg) => {
+            shared.log(&format!("SteamVR Home: {msg}"));
+            0
+        }
+        Err(e) => {
+            shared.log(&format!("SteamVR Home ERROR: {e}"));
+            1
+        }
+    }
+}
+
 fn main() -> eframe::Result {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let has = |flag: &str| args.iter().any(|a| a.eq_ignore_ascii_case(flag));
+    if has("--launch") {
+        std::process::exit(headless_launch());
+    }
+    if has("--register") {
+        std::process::exit(headless_steamvr_home(true));
+    }
+    if has("--unregister") {
+        std::process::exit(headless_steamvr_home(false));
+    }
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([640.0, 420.0])
